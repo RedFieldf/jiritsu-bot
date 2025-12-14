@@ -141,8 +141,8 @@ def post_with_image(text, image_data):
     # 固定リプライ（コンバージョンへの誘導）
     reply_text = """
     日東駒専・産近甲龍からの大逆転内定なら「ジリツ」。
-    
     学歴フィルターを突破する戦略、教えます。
+    
     無料相談はこちらから👇
     https://www.jicoo.com/t/dX0f4ah7ZNbn/e/jiritsu?utm_source=bot
     """
@@ -196,3 +196,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"予期せぬエラー: {e}")
     print("---処理終了---")
+
