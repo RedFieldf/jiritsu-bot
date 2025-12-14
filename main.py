@@ -18,7 +18,7 @@ X_ACCESS_TOKEN_SECRET = os.environ.get("X_ACCESS_TOKEN_SECRET")
 def generate_tweet_content():
     genai.configure(api_key=GEMINI_API_KEY)
     # 無料枠で使える軽量モデルを指定
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-pro")
     
     # プロンプト（指示文）
     # 日によって内容を変えたい場合は、ここに曜日判定などを入れると良いです
@@ -65,4 +65,5 @@ if __name__ == "__main__":
         post_to_x(tweet_text)
     except Exception as e:
         print(f"予期せぬエラー: {e}")
+
     print("---処理終了---")
