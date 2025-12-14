@@ -1,33 +1,68 @@
 import os
+import tweepy
 import google.generativeai as genai
+from datetime import datetime
 
-# 環境変数からキーを読み込む
+# ---------------------------------------------------------
+# 1. 環境変数からキーを読み込む
+# ---------------------------------------------------------
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+X_API_KEY = os.environ.get("X_API_KEY")
+X_API_SECRET = os.environ.get("X_API_SECRET")
+X_ACCESS_TOKEN = os.environ.get("X_ACCESS_TOKEN")
+X_ACCESS_TOKEN_SECRET = os.environ.get("X_ACCESS_TOKEN_SECRET")
 
-print("--- 診断開始 ---")
-
-# 1. キーが読み込めているか確認
-if GEMINI_API_KEY:
-    print("APIキー: 読み込み成功")
-else:
-    print("APIキー: 読み込み失敗（設定されていません）")
-
-# 2. 使えるモデル一覧を表示する
-try:
+# ---------------------------------------------------------
+# 2. Geminiでツイート本文を生成する
+# ---------------------------------------------------------
+def generate_tweet_content():
     genai.configure(api_key=GEMINI_API_KEY)
-    print("\n【このキーで利用可能なモデル一覧】")
     
-    # generateContent（文章生成）に対応しているモデルだけを表示
-    available_models = []
-    for m in genai.list_models():
-        if 'generateContent' in m.supported_generation_methods:
-            print(f"- {m.name}")
-            available_models.append(m.name)
-            
-    if not available_models:
-        print("利用可能なモデルが見つかりませんでした。")
-        
-except Exception as e:
-    print(f"\nエラーが発生しました: {e}")
+    # 【修正箇所】診断で見つかった最新モデルを指定します
+    model = genai.GenerativeModel("gemini-2.5-flash")
+    
+    # プロンプト（指示文）
+    prompt = """
+    あなたはキャリアアドバイザーです。
+    日本の新卒就活生（26卒・27卒）に向けて、元気が出る、または役に立つアドバイスを1つ考えてください。
+    
+    【条件】
+    - 文字数はハッシュタグ込みで130文字以内（厳守）
+    - 最後に #就活 #26卒 などのタグをつける
+    - 説教臭くならず、寄り添うトーンで
+    - 出力はツイート本文のみにすること
+    """
+    
+    response = model.generate_content(prompt)
+    return response.text.strip()
 
-print("--- 診断終了 ---")
+# ---------------------------------------------------------
+# 3. Xに投稿する
+# ---------------------------------------------------------
+def post_to_x(content):
+    # API v2を使用
+    client = tweepy.Client(
+        consumer_key=X_API_KEY,
+        consumer_secret=X_API_SECRET,
+        access_token=X_ACCESS_TOKEN,
+        access_token_secret=X_ACCESS_TOKEN_SECRET
+    )
+    
+    try:
+        response = client.create_tweet(text=content)
+        print(f"投稿成功！ ID: {response.data['id']}")
+        print(f"内容: {content}")
+    except Exception as e:
+        print(f"投稿エラー: {e}")
+
+# ---------------------------------------------------------
+# メイン処理
+# ---------------------------------------------------------
+if __name__ == "__main__":
+    print("---処理開始---")
+    try:
+        tweet_text = generate_tweet_content()
+        post_to_x(tweet_text)
+    except Exception as e:
+        print(f"予期せぬエラー: {e}")
+    print("---処理終了---")
