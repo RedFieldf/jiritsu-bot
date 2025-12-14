@@ -1,28 +1,26 @@
 name: Daily Tweet Bot
 
-# トリガー設定：毎日朝8時 (JST) に実行
-# cronはUTCなので、JST-9時間 = "0 23 * * *" (前日23時 = 日本朝8時)
 on:
   schedule:
     - cron: '0 23 * * *'
-  # 手動でも実行できるようにするボタン
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest  # ←ここを修正しました（runs_on -> runs-on）
+    runs-on: ubuntu-latest
     steps:
       - name: リポジトリをチェックアウト
         uses: actions/checkout@v3
 
-      - name: Pythonのセットアップ
+      - name: Python 3.11をセットアップ
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.11' 
 
-      - name: ライブラリのインストール
+      - name: ライブラリを強制インストール
         run: |
-          pip install -r requirements.txt
+          pip install tweepy
+          pip install "google-generativeai>=0.8.3"
 
       - name: Bot実行
         env:
