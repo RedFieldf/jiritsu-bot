@@ -4,6 +4,7 @@ import google.generativeai as genai
 import random
 import requests
 import io
+import time
 
 # ---------------------------------------------------------
 # 1. 環境変数
@@ -15,37 +16,31 @@ X_ACCESS_TOKEN = os.environ.get("X_ACCESS_TOKEN")
 X_ACCESS_TOKEN_SECRET = os.environ.get("X_ACCESS_TOKEN_SECRET")
 
 # ---------------------------------------------------------
-# 2. ガチャ用データ（業界 × 戦略的切り口）
+# 2. 投稿カテゴリ（ターゲットの悩みに直結させる）
 # ---------------------------------------------------------
-INDUSTRIES = [
-    # メーカー
-    "食品・農林・水産", "建設・住宅・インテリア", "繊維・化学・薬品・化粧品",
-    "鉄鋼・金属・鉱業", "機械・プラント", "電子・電気機器",
-    "自動車・輸送用機器", "精密・医療機器", "印刷・事務機器関連", "スポーツ・玩具",
-    # 商社
-    "総合商社", "専門商社",
-    # 小売
-    "百貨店・スーパー", "コンビニ", "専門店",
-    # 金融
-    "銀行・証券", "クレジット・信販・リース", "生保・損保",
-    # サービス・インフラ
-    "不動産", "鉄道・航空・運輸・物流", "電力・ガス・エネルギー",
-    "フードサービス", "ホテル・旅行", "医療・福祉",
-    "アミューズメント・レジャー", "コンサルティング・調査", "人材サービス", "教育",
-    # ソフトウェア・通信
-    "ソフトウェア", "インターネット", "通信",
-    # 広告・出版・マスコミ
-    "放送", "新聞", "出版", "広告",
-    # 官公庁・公社
-    "官公庁", "公社・団体"
-]
-
-TOPICS = [
-    "Market Value（市場価値から逆算するキャリア戦略）",
-    "Hidden Truth（業界のリアルな収益構造と働き方）",
-    "Gap Strategy（学歴のハンデを埋める具体的な戦術）",
-    "Future Trend（10年後も生き残るための視点）"
-]
+# ここが重要です。「業界」ではなく「悩み」軸で回します。
+CATEGORIES = {
+    "mindset_reset": {
+        "theme": "メンタル・焦りの解消",
+        "detail": "周りが内定式を終えて焦る学生に対し、10年の経験から「今からでも間に合う理由」と「焦ってブラックに行く危険性」を説く。"
+    },
+    "hidden_gems": {
+        "theme": "隠れ優良企業の推奨",
+        "detail": "知名度は低いが、利益率が高く、離職率が低いBtoBメーカーや専門商社の魅力を紹介。「知名度＝安定ではない」ことを教える。"
+    },
+    "interview_hacks": {
+        "theme": "面接・選考突破の裏技",
+        "detail": "「ガクチカがない」「早期選考で落ちた」人向けに、人事が見ている意外なポイントや、即効性のある逆質問などのテクニック。"
+    },
+    "career_vision": {
+        "theme": "5年後のキャリア論",
+        "detail": "「どこに入社するか」より「入社後どう育つか」が重要だと説く。ファーストキャリアで身につけるべきスキルや視点について。"
+    },
+    "real_story": {
+        "theme": "逆転内定の事例紹介",
+        "detail": "FランやNNT（無い内定）から、戦略を変えて優良企業に受かった過去の学生の成功事例（匿名）を紹介し、勇気づける。"
+    }
+}
 
 # ---------------------------------------------------------
 # 3. Geminiの設定
@@ -54,146 +49,173 @@ genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel("gemini-2.5-flash")
 
 # ---------------------------------------------------------
-# 4. ツイート本文を作る関数（知的・戦略的トーン）
+# 4. ツイート本文を作る関数（信頼獲得・共感型）
 # ---------------------------------------------------------
-def generate_tweet_text(industry, topic):
+def generate_tweet_text(category_key, category_info):
     prompt = f"""
-    あなたは「大逆転内定専門支援サービス『ジリツ』」の、知的で冷静な戦略キャリアコーチです。
-    特に【日東駒専・産近甲龍・地方国公立】の学生が、難関企業（商社・コンサル・大手メーカー等）に内定するための「勝てる戦略」を授けてください。
+    あなたは就活支援歴10年以上、数千人をサポートしてきたプロのエージェント「ジリツ」です。
+    現在は12月中旬〜1月。ターゲットは「まだ納得内定がない」「大手全落ちで焦っている」26卒・27卒の学生です。
+    彼らの不安に寄り添いつつ、プロとしての権威性を示し、信頼を勝ち取るツイートを作成してください。
 
-    【対象業界】
-    {industry}
+    【今回の投稿テーマ】
+    {category_info['theme']}
+    ({category_info['detail']})
 
-    【今回の視点】
-    {topic}
+    【ツイート作成のルール】
+    1. **ターゲット**: 日東駒専・産近甲龍・地方国公立レベルで、自信を失いかけている学生。
+    2. **トーン**: 
+       - × 単なる励まし（「頑張ればできるよ！」）はNG。軽薄に見える。
+       - ○ プロの分析（「過去のデータではこうだった。だから大丈夫」）で安心させる。
+       - 語り口は「〜だ」「〜です」など、自信に満ちた落ち着いた口調。
+    3. **構成**:
+       - 冒頭：学生の「心の声」や「痛いところ」を突くフック。
+       - 中盤：プロの知見に基づいた解決策や新しい視点。
+       - 結び：「ジリツ」ならその答えを持っていることを匂わせる（宣伝しすぎない）。
+    4. **禁止事項**: 嘘や架空の数字は使わない。ハッシュタグ以外でURLは貼らない。
+    5. **文字数**: タグ込みで130文字〜140文字ギリギリまで使って密度を高くする。
+    6. **必須タグ**: #就活 #26卒 #無い内定 #就活エージェント
 
-    【ツイート作成のルール（トーン＆マナー）】
-    1. **口調**: 落ち着いた「です・ます」調、または知的な「言い切り（〜だ、〜である）」とする。煽りや説教口調は禁止。
-    2. **ターゲットへの寄り添い**: 「学歴フィルター」という現実を冷静に認めつつ、それを論理や行動量でどう突破するかを具体的にアドバイスする。
-    3. **プロの視座**: 学生が知らないような業界の裏側や、ビジネスの本質（どう利益を出しているか等）を語り、視座を引き上げる。
-    4. **ブランディング**: 文脈に自然に「日東駒専・産近甲龍ならジリツ」「戦略で勝つジリツ」というニュアンスを含める。
-    5. 文字数はタグ込み135文字以内。
-    6. タグは #就活 #26卒 #27卒 #逆転内定 #{industry.replace("・", "_")} を使用。
-
-    【良い例】
-    「総合商社を志望する日東駒専の学生に必要なのは、スマートさよりも『泥臭い現場力』の証明です。商社の利益の源泉は、綺麗なオフィスではなく、現場でのタフな交渉にあります。そこを実体験（ガクチカ）で語れるかが、逆転内定への鍵となります。 #就活 #26卒 #逆転内定 #総合商社」
+    【出力例（あくまでトーンの参考）】
+    「『聞いたことない会社＝ブラック』という思い込みが、あなたの首を絞めています。私が10年見てきた中で、最強の勝ち組は『知名度ゼロの電子部品メーカー』に入り、30歳で年収1000万を超えた学生です。見るべきはCMの量ではなく、利益率と定着率。その見極め方、教えます。 #就活 #26卒 #隠れ優良企業」
     """
-    response = model.generate_content(prompt)
-    return response.text.strip()
+    
+    try:
+        response = model.generate_content(prompt)
+        return response.text.strip()
+    except Exception as e:
+        print(f"Gemini Error: {e}")
+        return None
 
 # ---------------------------------------------------------
-# 5. 画像生成用の「指示」を作る関数
+# 5. 画像プロンプトを作る関数（エモい・抽象・図解風）
 # ---------------------------------------------------------
-def generate_image_prompt(industry, tweet_text):
+def generate_image_prompt(tweet_text):
     prompt = f"""
-    Based on the following tweet, create an English prompt for generating an image that looks like a **"Viral Instagram Career Post"** or **"Modern Infographic"**.
+    Based on the following tweet content, create a prompt for an AI image generator.
+    The goal is to create an image that stops a user from scrolling on X (Twitter).
 
     Tweet Content:
     {tweet_text}
 
-    Target Industry:
-    {industry}
-
-    Rules for the Image Prompt:
-    1.  **Style**: Minimalist, Clean, High Contrast, Vector Art style, or "Aesthetic Notion-style illustration".
-    2.  **Visual Metaphor**: Use visual metaphors for "Strategy", "Growth", "Breaking barriers", or "Future vision".
-    3.  **No Text**: Do not include specific text in the image.
-    4.  **Vibe**: Intelligent, Professional, Trustworthy, Modern.
-    5.  **Output**: ONLY the English prompt string. Start with "A trendy flat illustration of..." or "A minimalist 3D render of..."
+    Image Style Directions:
+    1. **Mood**: Professional, slightly moody but hopeful, minimalist, high quality.
+    2. **Visuals**: 
+       - Use metaphors (e.g., a light in a maze, a stepping stone, a hidden gem, a ladder rising from fog).
+       - OR a clean, aesthetic "Notion-style" illustration of a checklist or chart.
+    3. **NO TEXT**: Do NOT try to include specific text or letters in the image.
+    4. **Output**: ONLY the English prompt string. 
+    
+    Example prompts to emulate:
+    - "A minimalist isometric illustration of a golden key hidden among grey stones, soft lighting, 3d render"
+    - "A moody photography of a desk with a glowing resume, late night city background, shallow depth of field, cinematic lighting"
     """
-    response = model.generate_content(prompt)
-    return response.text.strip()
+    try:
+        response = model.generate_content(prompt)
+        return response.text.strip()
+    except Exception as e:
+        print(f"Gemini Image Prompt Error: {e}")
+        return "minimalist business illustration, growth and success, soft colors, high quality"
 
 # ---------------------------------------------------------
-# 6. 画像を生成してダウンロードする関数
+# 6. 画像生成・ダウンロード
 # ---------------------------------------------------------
 def generate_and_download_image(image_prompt):
+    # Pollinations AI (Flux model is good for artistic/realistic)
     base_url = "https://image.pollinations.ai/prompt/"
-    seed = random.randint(0, 10000)
-    # インスタ風の正方形
-    url = f"{base_url}{image_prompt}?width=1080&height=1080&seed={seed}&nologo=true&model=flux"
+    seed = random.randint(0, 99999)
+    # URLエンコードなどはrequestsがよしなにやってくれることが多いが、念のため
+    safe_prompt = requests.utils.quote(image_prompt)
     
-    print(f"画像生成中...: {url}")
-    response = requests.get(url)
+    # model=flux は画質が良い傾向にある
+    url = f"{base_url}{safe_prompt}?width=1080&height=1080&seed={seed}&nologo=true&model=flux"
     
-    if response.status_code == 200:
-        return io.BytesIO(response.content)
-    else:
-        print("画像生成に失敗しました")
+    print(f"Generating Image: {url}")
+    try:
+        response = requests.get(url, timeout=30)
+        if response.status_code == 200:
+            return io.BytesIO(response.content)
+        else:
+            print(f"Image Gen Failed: {response.status_code}")
+            return None
+    except Exception as e:
+        print(f"Image Download Error: {e}")
         return None
 
 # ---------------------------------------------------------
-# 7. Xに投稿する（画像添付あり）
+# 7. 投稿処理
 # ---------------------------------------------------------
-def post_with_image(text, image_data):
-    auth = tweepy.OAuth1UserHandler(
-        X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_TOKEN_SECRET
-    )
-    api = tweepy.API(auth)
-
+def post_to_x(text, image_data):
+    # 認証
     client = tweepy.Client(
         consumer_key=X_API_KEY,
         consumer_secret=X_API_SECRET,
         access_token=X_ACCESS_TOKEN,
         access_token_secret=X_ACCESS_TOKEN_SECRET
     )
+    auth = tweepy.OAuth1UserHandler(
+        X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_TOKEN_SECRET
+    )
+    api = tweepy.API(auth)
 
-    # 固定リプライ（コンバージョンへの誘導）
+    # リプライ（誘導用）
     reply_text = """
-    日東駒専・産近甲龍からの大逆転内定なら「ジリツ」。
-    学歴フィルターを突破する戦略、教えます。
-    
-    無料相談はこちらから👇
+    ▼納得内定への最短ルート（無料相談）
     https://www.jicoo.com/t/dX0f4ah7ZNbn/e/jiritsu?utm_source=bot
+
+    ▼「ジリツ」のサービス詳細
+    https://jiritsu-syukatsu.studio.site/
     """
 
     try:
         media_id = None
         if image_data:
-            media = api.media_upload(filename="image.jpg", file=image_data)
+            # 画像アップロード
+            media = api.media_upload(filename="post_image.jpg", file=image_data)
             media_id = media.media_id
-            print("画像アップロード成功")
+            print("Media Uploaded")
 
+        # ツイート送信
         if media_id:
-            response = client.create_tweet(text=text, media_ids=[media_id])
+            res = client.create_tweet(text=text, media_ids=[media_id])
         else:
-            response = client.create_tweet(text=text)
-            
-        tweet_id = response.data['id']
-        print(f"メイン投稿成功！ ID: {tweet_id}")
+            res = client.create_tweet(text=text)
+        
+        tweet_id = res.data['id']
+        print(f"Posted Tweet ID: {tweet_id}")
 
+        # 自分にリプライで誘導リンクを貼る（インプレッション低下防止テクニック）
+        time.sleep(2) # 少し待つ
         client.create_tweet(text=reply_text.strip(), in_reply_to_tweet_id=tweet_id)
-        print("宣伝リプライ成功！")
+        print("Posted Reply")
 
     except Exception as e:
-        print(f"投稿エラー: {e}")
+        print(f"Posting Error: {e}")
 
 # ---------------------------------------------------------
-# メイン処理
+# メイン実行ブロック
 # ---------------------------------------------------------
 if __name__ == "__main__":
-    print("---処理開始---")
-    try:
-        # ネタ決め
-        industry = random.choice(INDUSTRIES)
-        topic = random.choice(TOPICS)
-        print(f"今日のテーマ: {industry} × {topic}")
+    print("--- START ---")
+    
+    # ランダムでカテゴリを選択
+    cat_key = random.choice(list(CATEGORIES.keys()))
+    cat_data = CATEGORIES[cat_key]
+    print(f"Selected Category: {cat_data['theme']}")
 
-        # ツイート文章生成
-        tweet_text = generate_tweet_text(industry, topic)
-        print(f"生成されたツイート: {tweet_text}")
-
+    # 本文生成
+    tweet = generate_tweet_text(cat_key, cat_data)
+    
+    if tweet:
+        print(f"Tweet Text: \n{tweet}\n")
+        
         # 画像プロンプト生成
-        img_prompt = generate_image_prompt(industry, tweet_text)
-        print(f"画像指示(英語): {img_prompt}")
-
+        img_prompt = generate_image_prompt(tweet)
+        print(f"Image Prompt: {img_prompt}")
+        
         # 画像生成
-        image_data = generate_and_download_image(img_prompt)
-
+        img_data = generate_and_download_image(img_prompt)
+        
         # 投稿
-        post_with_image(tweet_text, image_data)
-
-    except Exception as e:
-        print(f"予期せぬエラー: {e}")
-    print("---処理終了---")
-
+        post_to_x(tweet, img_data)
+    
+    print("--- END ---")
