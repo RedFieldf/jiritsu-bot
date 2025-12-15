@@ -142,20 +142,22 @@ def generate_and_download_image(image_prompt):
         return None
 
 # ---------------------------------------------------------
-# 7. 投稿処理
+# 7. 投稿処理（安全装置付き）
 # ---------------------------------------------------------
 def post_to_x(text, image_data):
-    # 認証
+    # v1.1 API (画像アップロード用) の認証
+    auth = tweepy.OAuth1UserHandler(
+        X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_TOKEN_SECRET
+    )
+    api = tweepy.API(auth)
+
+    # v2 Client (ツイート投稿用) の認証
     client = tweepy.Client(
         consumer_key=X_API_KEY,
         consumer_secret=X_API_SECRET,
         access_token=X_ACCESS_TOKEN,
         access_token_secret=X_ACCESS_TOKEN_SECRET
     )
-    auth = tweepy.OAuth1UserHandler(
-        X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_TOKEN_SECRET
-    )
-    api = tweepy.API(auth)
 
     # リプライ（誘導用）
     reply_text = """
@@ -166,31 +168,52 @@ def post_to_x(text, image_data):
     https://jiritsu-syukatsu.studio.site/
     """
 
-    try:
-        media_id = None
-        if image_data:
-            # 画像アップロード
-            media = api.media_upload(filename="post_image.jpg", file=image_data)
-            media_id = media.media_id
-            print("Media Uploaded")
+    media_ids = []
 
-        # ツイート送信
-        if media_id:
-            res = client.create_tweet(text=text, media_ids=[media_id])
+    # --- 画像アップロードへの挑戦 ---
+    if image_data:
+        print("画像アップロードを試みます...")
+        try:
+            # ファイルポインタを先頭に戻す（念のため）
+            image_data.seek(0)
+            
+            # v1.1 APIを使って画像をアップロード
+            media = api.media_upload(filename="post_image.jpg", file=image_data)
+            media_ids = [media.media_id]
+            print(f"画像アップロード成功！ Media ID: {media.media_id}")
+            
+        except tweepy.errors.Forbidden as e:
+            print("【警告】画像のアップロード権限がありませんでした (403 Forbidden)。")
+            print("プラン制限の可能性があります。テキストのみで投稿を続行します。")
+            media_ids = [] # 画像IDを空にする
+        except Exception as e:
+            print(f"【警告】画像アップロード中にエラーが発生しました: {e}")
+            print("テキストのみで投稿を続行します。")
+            media_ids = []
+
+    # --- ツイート投稿 ---
+    try:
+        if media_ids:
+            # 画像あり投稿
+            res = client.create_tweet(text=text, media_ids=media_ids)
         else:
+            # 画像なし（または失敗時）投稿
             res = client.create_tweet(text=text)
         
         tweet_id = res.data['id']
-        print(f"Posted Tweet ID: {tweet_id}")
+        print(f"✅ メイン投稿成功! ID: {tweet_id}")
 
-        # 自分にリプライで誘導リンクを貼る（インプレッション低下防止テクニック）
-        time.sleep(2) # 少し待つ
-        client.create_tweet(text=reply_text.strip(), in_reply_to_tweet_id=tweet_id)
-        print("Posted Reply")
+        # --- リプライ投稿 ---
+        time.sleep(2)
+        try:
+            client.create_tweet(text=reply_text.strip(), in_reply_to_tweet_id=tweet_id)
+            print("✅ リプライ成功!")
+        except Exception as e:
+            print(f"リプライ投稿エラー（メインは成功しています）: {e}")
 
     except Exception as e:
-        print(f"Posting Error: {e}")
-
+        print(f"❌ 投稿エラー（致命的）: {e}")
+        
 # ---------------------------------------------------------
 # メイン実行ブロック
 # ---------------------------------------------------------
@@ -219,3 +242,4 @@ if __name__ == "__main__":
         post_to_x(tweet, img_data)
     
     print("--- END ---")
+
