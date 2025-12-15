@@ -135,7 +135,7 @@ def post_to_x(text, image_data):
     ▼納得内定への最短ルート（無料相談）
     https://www.jicoo.com/t/dX0f4ah7ZNbn/e/jiritsu?utm_source=bot
 
-    ▼「ジリツ」のサービス詳細
+▼「ジリツ」のサービス詳細
     https://jiritsu-syukatsu.studio.site/
     """
 
@@ -197,3 +197,4 @@ if __name__ == "__main__":
         post_to_x(tweet, img_data)
     
     print("--- END ---")
+
