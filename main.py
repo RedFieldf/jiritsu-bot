@@ -179,8 +179,8 @@ def post_to_x(text, image_data=None):
 
     # 固定のリプライ（Jicoo誘導）
     reply_text = """
-▼大手全落ち/NNTからの逆転ルート（無料）
-https://www.jicoo.com/t/dX0f4ah7ZNbn/e/jiritsu?utm_source=bot
+▼大手全落ち/NNTからの逆転ルート（無料相談）
+https://www.jicoo.com/t/dX0f4ah7ZNbn/e/jiritsu?utm_source=twitter
     """
 
     media_ids = []
@@ -245,4 +245,5 @@ if __name__ == "__main__":
         post_to_x(tweet_text, img_data)
     
     print("--- END ---")
+
 
